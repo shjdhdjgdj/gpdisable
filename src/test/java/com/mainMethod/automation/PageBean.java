@@ -19,9 +19,9 @@ import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.openqa.selenium.JavascriptExecutor;
 
-import config.VARIABLEssS;
+import config.VARIABLES;
 
-public class PageeBean {
+public class PageBean {
 
 	private WebDriver driver;
 	private WebDriverWait wait;
