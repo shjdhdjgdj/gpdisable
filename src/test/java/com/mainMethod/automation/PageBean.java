@@ -21,7 +21,7 @@ import org.openqa.selenium.JavascriptExecutor;
 
 import config.VARIABLEssS;
 
-public class PageBean {
+public class PageeBean {
 
 	private WebDriver driver;
 	private WebDriverWait wait;
