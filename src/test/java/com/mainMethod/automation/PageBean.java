@@ -344,14 +344,14 @@ public class PageBean {
             File file4 = new File(VARIABLES.VOTER_FILE_PATH + "\\" + epicIDImage + ".pdf");
 
             if (file1.exists()) {
-                voterIDUpload.sendKeys(file1.getAbsolutePath()); 
-            }else if (file2.exists()) {
-                voterIDUpload.sendKeys(file2.getAbsolutePath()); 
-            }else if (file3.exists()) {
-                voterIDUpload.sendKeys(file3.getAbsolutePath()); 
-            }else if (file4.exists()) {
-                voterIDUpload.sendKeys(file4.getAbsolutePath()); 
-            }else {
+                voterIDUpload.sendKeys(file1.getAbsolutePath());
+            } else if (file2.exists()) {
+                voterIDUpload.sendKeys(file2.getAbsolutePath());
+            } else if (file3.exists()) {
+                voterIDUpload.sendKeys(file3.getAbsolutePath());
+            } else if (file4.exists()) {
+                voterIDUpload.sendKeys(file4.getAbsolutePath());
+            } else {
                 throw new FileNotFoundException("Voter ID not found: " + epicIDImage);
             }
 
@@ -366,14 +366,14 @@ public class PageBean {
             File file4 = new File(VARIABLES.AADHAR_FILE_PATH + "\\" + aadharImg + ".pdf");
 
             if (file1.exists()) {
-                aadharIDUpload.sendKeys(file1.getAbsolutePath()); 
-            }else if (file2.exists()) {
-                aadharIDUpload.sendKeys(file2.getAbsolutePath()); 
-            }else if (file3.exists()) {
-                aadharIDUpload.sendKeys(file3.getAbsolutePath()); 
-            }else if (file4.exists()) {
-                aadharIDUpload.sendKeys(file4.getAbsolutePath()); 
-            }else {
+                aadharIDUpload.sendKeys(file1.getAbsolutePath());
+            } else if (file2.exists()) {
+                aadharIDUpload.sendKeys(file2.getAbsolutePath());
+            } else if (file3.exists()) {
+                aadharIDUpload.sendKeys(file3.getAbsolutePath());
+            } else if (file4.exists()) {
+                aadharIDUpload.sendKeys(file4.getAbsolutePath());
+            } else {
                 throw new FileNotFoundException("Aadhar not found: " + aadharImg);
             }
 
@@ -427,37 +427,54 @@ public class PageBean {
         wait.until(driver -> new Select(cropDetailsCropDropDown).getOptions().size() > 1);
         new Select(cropDetailsCropDropDown).selectByVisibleText(crop);
 
-        /*---------------- Gram Panchayat (Robust Handling) ----------------*/
+        /*---------------- Wait for GP refresh after Crop ----------------*/
+        Thread.sleep(1500);
+
+        boolean gpSelected = false;
+
+        /*---------------- Try LAND GP (Final GP) ----------------*/
         try {
 
-            // Final GP dropdown
-            if (driver.findElements(By.id(
-                    "insurance_farmer_insurance_applications_attributes_0_insurance_lands_attributes_0_gram_panchayat_id"))
-                    .size() > 0) {
+            wait.until(ExpectedConditions.elementToBeClickable(
+                    By.id("insurance_farmer_insurance_applications_attributes_0_insurance_lands_attributes_0_gram_panchayat_id")));
 
-                WebElement gpFinal = wait.until(ExpectedConditions.visibilityOfElementLocated(
-                        By.id("insurance_farmer_insurance_applications_attributes_0_insurance_lands_attributes_0_gram_panchayat_id")));
+            wait.until(driver
+                    -> new Select(cropDetailsGramPanchayatFinal).getOptions().size() > 1);
 
-                wait.until(driver1 -> new Select(gpFinal).getOptions().size() > 1);
+            new Select(cropDetailsGramPanchayatFinal)
+                    .selectByVisibleText(gpInitial.trim());
 
-                new Select(gpFinal).selectByVisibleText(gpInitial);
-            }
+            System.out.println("Selected LAND GP: " + gpInitial);
+
+            gpSelected = true;
 
         } catch (Exception e) {
 
+            System.out.println("Land GP not ready, trying Crop GP...");
+
+        }
+
+        /*---------------- Fallback to CROP GP ----------------*/
+        if (!gpSelected) {
+
             try {
 
-                // Initial GP dropdown
-                WebElement gpInitialElement = wait.until(ExpectedConditions.visibilityOfElementLocated(
+                wait.until(ExpectedConditions.elementToBeClickable(
                         By.id("insurance_farmer_insurance_applications_attributes_0_gram_panchayat_id")));
 
-                wait.until(driver1 -> new Select(gpInitialElement).getOptions().size() > 1);
+                wait.until(driver
+                        -> new Select(cropDetailsGramPanchayatInitial).getOptions().size() > 1);
 
-                new Select(gpInitialElement).selectByVisibleText(gpInitial);
+                new Select(cropDetailsGramPanchayatInitial)
+                        .selectByVisibleText(gpInitial.trim());
 
-            } catch (Exception ignored) {
+                System.out.println("Selected CROP GP: " + gpInitial);
+
+            } catch (Exception e) {
+
+                System.out.println("GP selection failed for: " + gpInitial);
+
             }
-
         }
 
         /*---------------- Mouza ----------------*/
@@ -485,8 +502,11 @@ public class PageBean {
         }
 
         /*---------------- Nature Of Farmer ----------------*/
-        wait.until(driver -> new Select(cropDetailsNatureOfFarmerDropDown).getOptions().size() > 1);
-        new Select(cropDetailsNatureOfFarmerDropDown).selectByVisibleText(natureOfFarmer);
+        wait.until(driver
+                -> new Select(cropDetailsNatureOfFarmerDropDown).getOptions().size() > 1);
+
+        new Select(cropDetailsNatureOfFarmerDropDown)
+                .selectByVisibleText(natureOfFarmer);
 
         /*---------------- Upload Parcha ----------------*/
         try {
@@ -580,12 +600,12 @@ public class PageBean {
                 File f4 = new File(VARIABLES.BANK_FILE_PATH + "\\" + accountNumber + ".pdf");
 
                 if (f1.exists()) {
-                    bankDocumentProofUpload.sendKeys(f1.getAbsolutePath()); 
-                }else if (f2.exists()) {
-                    bankDocumentProofUpload.sendKeys(f2.getAbsolutePath()); 
-                }else if (f3.exists()) {
-                    bankDocumentProofUpload.sendKeys(f3.getAbsolutePath()); 
-                }else if (f4.exists()) {
+                    bankDocumentProofUpload.sendKeys(f1.getAbsolutePath());
+                } else if (f2.exists()) {
+                    bankDocumentProofUpload.sendKeys(f2.getAbsolutePath());
+                } else if (f3.exists()) {
+                    bankDocumentProofUpload.sendKeys(f3.getAbsolutePath());
+                } else if (f4.exists()) {
                     bankDocumentProofUpload.sendKeys(f4.getAbsolutePath());
                 }
                 // Optional: Log if no file found, but don't throw exception if we want to continue
