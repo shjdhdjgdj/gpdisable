@@ -244,14 +244,14 @@ public class PageBean {
 		passWord.sendKeys(s2);
 
 		Select dropdown1 = new Select(seasonDropdown);
-		dropdown1.selectByIndex(index1);
+		dropdown1.selectByIndex(index2);
 
 		wait.until(driver1 -> {
 			Select dropDown2 = new Select(sessionDropdown);
 			return dropDown2.getOptions().size() > 1;
 		});
 		Select dropdown2 = new Select(sessionDropdown);
-		dropdown2.selectByIndex(index2);
+		dropdown2.selectByIndex(index1);
 
 		Thread.sleep(2000);
 		generateOtp.click();
