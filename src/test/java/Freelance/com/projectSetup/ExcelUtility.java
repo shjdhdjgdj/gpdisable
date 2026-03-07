@@ -7,23 +7,29 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.poi.ss.usermodel.*;
 import org.testng.annotations.DataProvider;
 
 public class ExcelUtility {
 
+    // ─── FIX 3: Class-level lock object for true static synchronization ───────
+    private static final Object FILE_LOCK = new Object();
+
     @DataProvider(name = "excelData")
     public static Object[][] getExcelData() {
         File file = new File(VARIABLES.EXCEL_FILE_PATH);
-        Workbook workBook = null;
         Object[][] data = null;
 
-        try (FileInputStream excelFile = new FileInputStream(file)) {
-            workBook = WorkbookFactory.create(excelFile);
+        // ─── FIX 4: Single try-with-resources ensures streams always close ────
+        try (FileInputStream excelFile = new FileInputStream(file);
+             Workbook workBook = WorkbookFactory.create(excelFile)) {
+
             Sheet sheet = workBook.getSheet(VARIABLES.SHEET_NAME);
 
-            int totalRows = sheet.getLastRowNum();
+            int totalRows    = sheet.getLastRowNum();
             int totalColumns = sheet.getRow(0).getLastCellNum();
 
             ArrayList<Object[]> dataList = new ArrayList<>();
@@ -31,12 +37,10 @@ public class ExcelUtility {
 
             for (int i = 1; i <= totalRows; i++) {
                 Row row = sheet.getRow(i);
-                if (row == null) continue; // Skip empty rows
-                
-                Object[] rowData = new Object[totalColumns + 1]; // +1 for row index
+                if (row == null) continue;
 
-                // Store the actual Excel row number (1-based) at position 0
-                rowData[0] = i;
+                Object[] rowData = new Object[totalColumns + 1]; // +1 for row index
+                rowData[0] = i; // Store 1-based Excel row number
 
                 for (int j = 0; j < totalColumns; j++) {
                     Cell cell = row.getCell(j);
@@ -47,12 +51,79 @@ public class ExcelUtility {
 
             data = new Object[dataList.size()][];
             dataList.toArray(data);
-            
+
         } catch (IOException e) {
             e.printStackTrace();
             throw new RuntimeException("Error reading excel file: " + e.getMessage());
-        } finally {
-            if (workBook != null) {
+        }
+
+        return data;
+    }
+
+    /**
+     * Update test status in Excel file.
+     *
+     * @param rowIndex    The Excel row number (1-based)
+     * @param status      PASS / FAIL / SKIP
+     */
+    public static void updateTestStatus(int rowIndex, String status) {
+        updateTestStatus(rowIndex, status, 55); // Default column BD (index 55)
+    }
+
+    /**
+     * Update test status with a custom column index.
+     *
+     * @param rowIndex     The Excel row number (1-based)
+     * @param status       PASS / FAIL / SKIP
+     * @param statusColumn 0-based column index (e.g. 55 = column BD)
+     */
+    public static void updateTestStatus(int rowIndex, String status, int statusColumn) {
+
+        File file = new File(VARIABLES.EXCEL_FILE_PATH);
+
+        // ─── FIX 3: Synchronize on a static lock so parallel threads are safe ─
+        synchronized (FILE_LOCK) {
+
+            Workbook workBook = null;
+
+            // ─── FIX 4: Use separate try blocks so read and write are clean ───
+            try (FileInputStream fis = new FileInputStream(file)) {
+                workBook = WorkbookFactory.create(fis);
+            } catch (IOException e) {
+                System.err.println("❌ Error reading Excel for row " + rowIndex + ": " + e.getMessage());
+                e.printStackTrace();
+                return;
+            }
+
+            try {
+                Sheet sheet = workBook.getSheet(VARIABLES.SHEET_NAME);
+
+                Row row = sheet.getRow(rowIndex);
+                if (row == null) {
+                    row = sheet.createRow(rowIndex);
+                }
+
+                Cell statusCell = row.getCell(statusColumn, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                statusCell.setCellValue(status);
+
+                // ─── FIX 2: Reuse styles — never call createCellStyle() repeatedly ───
+                CellStyle style = getOrCreateStyle(workBook, status);
+                statusCell.setCellStyle(style);
+
+                sheet.autoSizeColumn(statusColumn);
+
+                // ─── FIX 1: Write then close workbook inside finally ──────────────
+                try (FileOutputStream fos = new FileOutputStream(file)) {
+                    workBook.write(fos);
+                }
+
+                System.out.println("✅ Excel updated: Row " + rowIndex + " = " + status);
+
+            } catch (Exception e) {
+                System.err.println("❌ Error updating Excel status for row " + rowIndex + ": " + e.getMessage());
+                e.printStackTrace();
+            } finally {
+                // ─── FIX 1: Workbook is always closed, even if write() throws ────
                 try {
                     workBook.close();
                 } catch (IOException e) {
@@ -60,141 +131,48 @@ public class ExcelUtility {
                 }
             }
         }
-
-        return data;
     }
 
-    /**
-     * Update test status in Excel file
-     * @param rowIndex The Excel row number (1-based)
-     * @param status PASS/FAIL/SKIP
-     */
-    public static synchronized void updateTestStatus(int rowIndex, String status) {
-        File file = new File(VARIABLES.EXCEL_FILE_PATH);
-        Workbook workBook = null;
-        FileInputStream fis = null;
-        FileOutputStream fos = null;
+    // ─── FIX 2: Cache styles per workbook instance to avoid the 64k limit ────
+    //           Key = "PASS" / "FAIL" / "SKIP"
+    private static final Map<String, CellStyle> styleCache = new HashMap<>();
 
-        try {
-            // Read the existing file
-            fis = new FileInputStream(file);
-            workBook = WorkbookFactory.create(fis);
-            fis.close(); // Close input stream before writing
+    private static CellStyle getOrCreateStyle(Workbook workBook, String status) {
 
-            Sheet sheet = workBook.getSheet(VARIABLES.SHEET_NAME);
-            
-            // Get the row (rowIndex is 1-based Excel row number)
-            Row row = sheet.getRow(rowIndex);
-            if (row == null) {
-                row = sheet.createRow(rowIndex);
-            }
+        // Each time the file is re-opened a new Workbook instance is created,
+        // so we key on both the workbook identity and the status string.
+        String cacheKey = System.identityHashCode(workBook) + "_" + status.toUpperCase();
 
-            // Use column 55 (column BD) for status - change this number as needed
-            // A=0, B=1, C=2, ... Z=25, AA=26, AB=27, ... BD=55
-            int statusColumn = 55;
-            
-            // Create or get the status cell
-            Cell statusCell = row.getCell(statusColumn, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
-            
-            // Set the status value
-            statusCell.setCellValue(status);
-            
-            // Add color coding based on status
-            CellStyle style = workBook.createCellStyle();
-            Font font = workBook.createFont();
-            
-            if ("PASS".equalsIgnoreCase(status)) {
+        if (styleCache.containsKey(cacheKey)) {
+            return styleCache.get(cacheKey);
+        }
+
+        CellStyle style = workBook.createCellStyle();
+        Font font = workBook.createFont();
+
+        switch (status.toUpperCase()) {
+            case "PASS":
                 style.setFillForegroundColor(IndexedColors.GREEN.getIndex());
-                style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
                 font.setColor(IndexedColors.WHITE.getIndex());
-            } else if ("FAIL".equalsIgnoreCase(status)) {
+                break;
+            case "FAIL":
                 style.setFillForegroundColor(IndexedColors.RED.getIndex());
-                style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
                 font.setColor(IndexedColors.WHITE.getIndex());
-            } else if ("SKIP".equalsIgnoreCase(status)) {
+                break;
+            case "SKIP":
                 style.setFillForegroundColor(IndexedColors.YELLOW.getIndex());
-                style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
                 font.setColor(IndexedColors.BLACK.getIndex());
-            }
-            
-            style.setFont(font);
-            statusCell.setCellStyle(style);
-
-            // Auto-size the status column for better visibility
-            sheet.autoSizeColumn(statusColumn);
-
-            // Write back to file
-            fos = new FileOutputStream(file);
-            workBook.write(fos);
-            fos.close();
-
-            System.out.println("✅ Excel updated: Row " + rowIndex + " = " + status);
-
-        } catch (Exception e) {
-            System.err.println("❌ Error updating Excel status for row " + rowIndex + ": " + e.getMessage());
-            e.printStackTrace();
-        } finally {
-            try {
-                if (fis != null) fis.close();
-                if (fos != null) fos.close();
-                if (workBook != null) workBook.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+                break;
+            default:
+                style.setFillForegroundColor(IndexedColors.WHITE.getIndex());
+                font.setColor(IndexedColors.BLACK.getIndex());
+                break;
         }
-    }
-    
-    /**
-     * Overloaded method to update status with custom column
-     */
-    public static synchronized void updateTestStatus(int rowIndex, String status, int statusColumn) {
-        File file = new File(VARIABLES.EXCEL_FILE_PATH);
-        Workbook workBook = null;
-        FileInputStream fis = null;
-        FileOutputStream fos = null;
 
-        try {
-            fis = new FileInputStream(file);
-            workBook = WorkbookFactory.create(fis);
-            fis.close();
+        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        style.setFont(font);
 
-            Sheet sheet = workBook.getSheet(VARIABLES.SHEET_NAME);
-            Row row = sheet.getRow(rowIndex);
-            if (row == null) {
-                row = sheet.createRow(rowIndex);
-            }
-
-            Cell statusCell = row.getCell(statusColumn, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
-            statusCell.setCellValue(status);
-            
-            // Simple color coding
-            CellStyle style = workBook.createCellStyle();
-            if ("PASS".equalsIgnoreCase(status)) {
-                style.setFillForegroundColor(IndexedColors.GREEN.getIndex());
-                style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            } else if ("FAIL".equalsIgnoreCase(status)) {
-                style.setFillForegroundColor(IndexedColors.RED.getIndex());
-                style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            } else if ("SKIP".equalsIgnoreCase(status)) {
-                style.setFillForegroundColor(IndexedColors.YELLOW.getIndex());
-                style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            }
-            statusCell.setCellStyle(style);
-
-            fos = new FileOutputStream(file);
-            workBook.write(fos);
-            fos.close();
-
-        } catch (Exception e) {
-            System.err.println("Error updating Excel status: " + e.getMessage());
-        } finally {
-            try {
-                if (fis != null) fis.close();
-                if (fos != null) fos.close();
-                if (workBook != null) workBook.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+        styleCache.put(cacheKey, style);
+        return style;
     }
 }
