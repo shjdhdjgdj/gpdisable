@@ -420,44 +420,45 @@ public class PageBean {
         new Select(cropDetailsDistrictDropDown).selectByVisibleText(district);
 
         /*---------------- Block ----------------*/
-        wait.until(driver -> new Select(cropDetailsBlockDropDown).getOptions().size() > 1);
+        wait.until(d -> new Select(cropDetailsBlockDropDown).getOptions().size() > 1);
         new Select(cropDetailsBlockDropDown).selectByVisibleText(block);
 
         /*---------------- Crop ----------------*/
-        wait.until(driver -> new Select(cropDetailsCropDropDown).getOptions().size() > 1);
+        wait.until(d -> new Select(cropDetailsCropDropDown).getOptions().size() > 1);
         new Select(cropDetailsCropDropDown).selectByVisibleText(crop);
 
-        /*---------------- Wait for AJAX refresh after crop ----------------*/
+        /*---------------- Wait for GP reload ----------------*/
         Thread.sleep(2000);
 
         boolean gpSelected = false;
 
-        /*---------------- Try LAND GP (Final GP) ----------------*/
+        /*---------------- LAND GP (preferred) ----------------*/
         try {
 
             By landGP = By.id(
                     "insurance_farmer_insurance_applications_attributes_0_insurance_lands_attributes_0_gram_panchayat_id");
 
-            if (!driver.findElements(landGP).isEmpty()) {
+            wait.until(ExpectedConditions.presenceOfElementLocated(landGP));
 
-                WebElement gpFinal = wait.until(ExpectedConditions.elementToBeClickable(landGP));
+            WebElement gpFinal = driver.findElement(landGP);
 
-                wait.until(d -> new Select(gpFinal).getOptions().size() > 1);
+            wait.until(d -> gpFinal.isEnabled());
 
-                new Select(gpFinal).selectByVisibleText(gpInitial.trim());
+            wait.until(d -> new Select(gpFinal).getOptions().size() > 1);
 
-                System.out.println("LAND GP Selected: " + gpInitial);
+            new Select(gpFinal).selectByVisibleText(gpInitial.trim());
 
-                gpSelected = true;
-            }
+            System.out.println("LAND GP selected: " + gpInitial);
+
+            gpSelected = true;
 
         } catch (Exception e) {
 
-            System.out.println("Land GP not ready, trying Crop GP...");
+            System.out.println("Land GP not ready. Trying Crop GP...");
 
         }
 
-        /*---------------- Fallback to CROP GP ----------------*/
+        /*---------------- CROP GP fallback ----------------*/
         if (!gpSelected) {
 
             try {
@@ -465,26 +466,48 @@ public class PageBean {
                 By cropGP = By.id(
                         "insurance_farmer_insurance_applications_attributes_0_gram_panchayat_id");
 
-                WebElement gpInitialElement
-                        = wait.until(ExpectedConditions.elementToBeClickable(cropGP));
+                wait.until(ExpectedConditions.presenceOfElementLocated(cropGP));
+
+                WebElement gpInitialElement = driver.findElement(cropGP);
+
+                wait.until(d -> gpInitialElement.isEnabled());
 
                 wait.until(d -> new Select(gpInitialElement).getOptions().size() > 1);
 
                 new Select(gpInitialElement).selectByVisibleText(gpInitial.trim());
 
-                System.out.println("CROP GP Selected: " + gpInitial);
+                System.out.println("CROP GP selected: " + gpInitial);
 
                 gpSelected = true;
 
             } catch (Exception e) {
 
-                System.out.println("GP selection failed for: " + gpInitial);
+                System.out.println("Crop GP selection failed");
 
             }
         }
 
+        /*---------------- Retry once if still not selected ----------------*/
+        if (!gpSelected) {
+
+            System.out.println("Retrying GP selection...");
+
+            Thread.sleep(2000);
+
+            By landGP = By.id(
+                    "insurance_farmer_insurance_applications_attributes_0_insurance_lands_attributes_0_gram_panchayat_id");
+
+            WebElement gpRetry = driver.findElement(landGP);
+
+            wait.until(d -> new Select(gpRetry).getOptions().size() > 1);
+
+            new Select(gpRetry).selectByVisibleText(gpInitial.trim());
+
+            System.out.println("GP selected after retry: " + gpInitial);
+        }
+
         /*---------------- Mouza ----------------*/
-        wait.until(driver -> new Select(cropDetailsMouzaDropDown).getOptions().size() > 1);
+        wait.until(d -> new Select(cropDetailsMouzaDropDown).getOptions().size() > 1);
         new Select(cropDetailsMouzaDropDown).selectByVisibleText(mouza);
 
         /*---------------- Khatian & Plot ----------------*/
@@ -495,25 +518,22 @@ public class PageBean {
         cropDetailsAreaInAcre.clear();
         cropDetailsAreaInAcre.sendKeys(areaInAcre1);
 
-        /*---------------- Handle alert if area >= 1 ----------------*/
+        /*---------------- Alert handling ----------------*/
         Double area = Double.parseDouble(areaInAcre1);
 
         if (area >= 1) {
             try {
                 wait.until(ExpectedConditions.alertIsPresent());
-                Alert alert = driver.switchTo().alert();
-                alert.accept();
+                driver.switchTo().alert().accept();
             } catch (Exception ignored) {
             }
         }
 
-        /*---------------- Nature Of Farmer ----------------*/
-        wait.until(driver -> new Select(cropDetailsNatureOfFarmerDropDown).getOptions().size() > 1);
+        /*---------------- Nature of farmer ----------------*/
+        wait.until(d -> new Select(cropDetailsNatureOfFarmerDropDown).getOptions().size() > 1);
+        new Select(cropDetailsNatureOfFarmerDropDown).selectByVisibleText(natureOfFarmer);
 
-        new Select(cropDetailsNatureOfFarmerDropDown)
-                .selectByVisibleText(natureOfFarmer);
-
-        /*---------------- Upload Parcha ----------------*/
+        /*---------------- Upload parcha ----------------*/
         try {
 
             File f1 = new File(VARIABLES.PARCHA_FILE_PATH + "\\" + parchaImg + ".jpg");
@@ -537,7 +557,7 @@ public class PageBean {
             e.printStackTrace();
         }
 
-        /*---------------- Upload Land Document ----------------*/
+        /*---------------- Upload land document ----------------*/
         try {
 
             File f1 = new File(VARIABLES.PARCHA_FILE_PATH + "\\" + parchaImg + ".jpg");
