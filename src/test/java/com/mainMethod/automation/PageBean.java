@@ -407,14 +407,6 @@ public class PageBean {
 		});
 		new Select(cropDetailsCropDropDown).selectByVisibleText(crop);
 
-		if (cropDetailsGramPanchayatInitial.isEnabled()) {
-			wait.until(driver1 -> {
-				Select dropDown = new Select(cropDetailsGramPanchayatInitial);
-				return dropDown.getOptions().size() > 1;
-			});
-			new Select(cropDetailsGramPanchayatInitial).selectByVisibleText(gpInitial);
-		}
-
 		if (cropDetailsGramPanchayatFinal.isEnabled()) {
 			wait.until(driver1 -> {
 				Select dropDown = new Select(cropDetailsGramPanchayatFinal);
