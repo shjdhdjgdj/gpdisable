@@ -427,26 +427,29 @@ public class PageBean {
         wait.until(driver -> new Select(cropDetailsCropDropDown).getOptions().size() > 1);
         new Select(cropDetailsCropDropDown).selectByVisibleText(crop);
 
-        /*---------------- Wait for GP refresh after Crop ----------------*/
-        Thread.sleep(1500);
+        /*---------------- Wait for AJAX refresh after crop ----------------*/
+        Thread.sleep(2000);
 
         boolean gpSelected = false;
 
         /*---------------- Try LAND GP (Final GP) ----------------*/
         try {
 
-            wait.until(ExpectedConditions.elementToBeClickable(
-                    By.id("insurance_farmer_insurance_applications_attributes_0_insurance_lands_attributes_0_gram_panchayat_id")));
+            By landGP = By.id(
+                    "insurance_farmer_insurance_applications_attributes_0_insurance_lands_attributes_0_gram_panchayat_id");
 
-            wait.until(driver
-                    -> new Select(cropDetailsGramPanchayatFinal).getOptions().size() > 1);
+            if (!driver.findElements(landGP).isEmpty()) {
 
-            new Select(cropDetailsGramPanchayatFinal)
-                    .selectByVisibleText(gpInitial.trim());
+                WebElement gpFinal = wait.until(ExpectedConditions.elementToBeClickable(landGP));
 
-            System.out.println("Selected LAND GP: " + gpInitial);
+                wait.until(d -> new Select(gpFinal).getOptions().size() > 1);
 
-            gpSelected = true;
+                new Select(gpFinal).selectByVisibleText(gpInitial.trim());
+
+                System.out.println("LAND GP Selected: " + gpInitial);
+
+                gpSelected = true;
+            }
 
         } catch (Exception e) {
 
@@ -459,16 +462,19 @@ public class PageBean {
 
             try {
 
-                wait.until(ExpectedConditions.elementToBeClickable(
-                        By.id("insurance_farmer_insurance_applications_attributes_0_gram_panchayat_id")));
+                By cropGP = By.id(
+                        "insurance_farmer_insurance_applications_attributes_0_gram_panchayat_id");
 
-                wait.until(driver
-                        -> new Select(cropDetailsGramPanchayatInitial).getOptions().size() > 1);
+                WebElement gpInitialElement
+                        = wait.until(ExpectedConditions.elementToBeClickable(cropGP));
 
-                new Select(cropDetailsGramPanchayatInitial)
-                        .selectByVisibleText(gpInitial.trim());
+                wait.until(d -> new Select(gpInitialElement).getOptions().size() > 1);
 
-                System.out.println("Selected CROP GP: " + gpInitial);
+                new Select(gpInitialElement).selectByVisibleText(gpInitial.trim());
+
+                System.out.println("CROP GP Selected: " + gpInitial);
+
+                gpSelected = true;
 
             } catch (Exception e) {
 
@@ -489,7 +495,7 @@ public class PageBean {
         cropDetailsAreaInAcre.clear();
         cropDetailsAreaInAcre.sendKeys(areaInAcre1);
 
-        /*---------------- Handle Alert if area >= 1 ----------------*/
+        /*---------------- Handle alert if area >= 1 ----------------*/
         Double area = Double.parseDouble(areaInAcre1);
 
         if (area >= 1) {
@@ -502,8 +508,7 @@ public class PageBean {
         }
 
         /*---------------- Nature Of Farmer ----------------*/
-        wait.until(driver
-                -> new Select(cropDetailsNatureOfFarmerDropDown).getOptions().size() > 1);
+        wait.until(driver -> new Select(cropDetailsNatureOfFarmerDropDown).getOptions().size() > 1);
 
         new Select(cropDetailsNatureOfFarmerDropDown)
                 .selectByVisibleText(natureOfFarmer);
