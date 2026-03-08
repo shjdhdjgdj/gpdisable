@@ -380,12 +380,13 @@ public class PageBean {
 			return dropDown3.getOptions().size() > 1;
 		});
 		new Select(farmersResidentialAddressgramPanchayatDropDown).selectByVisibleText(gramPanchayat);
-
-		wait.until(driver1 -> {
-			Select dropDown4 = new Select(farmersResidentialAddressvillageDropDown);
-			return dropDown4.getOptions().size() > 1;
+		
+		wait.until(ExpectedConditions.presenceOfElementLocated(By.id("vill_id")));
+		wait.until(driver -> {
+			Select dropDown = new Select(driver.findElement(By.id("vill_id")));
+			return dropDown.getOptions().size() > 1;
 		});
-		new Select(farmersResidentialAddressvillageDropDown).selectByIndex(1);
+		new Select(driver.findElement(By.id("vill_id"))).selectByIndex(1);
 
 		pinCode.sendKeys(pin);
 	}
