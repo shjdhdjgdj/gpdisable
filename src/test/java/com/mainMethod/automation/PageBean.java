@@ -19,6 +19,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 
 import config.VARIABLES;
 
+
 public class PageBean {
 
 	private WebDriver driver;
@@ -30,26 +31,33 @@ public class PageBean {
 		PageFactory.initElements(driver, this);
 	}
 
-	/*---------------------------------- Utility Method -----------------------------*/
+	/*---------------------------------- Utility Method (VERY IMPORTANT) -----------------------------*/
 
 	// Clears Bengali digits / multiple fetched numbers → inserts correct Excel value
 	public void clearAndType(WebElement element, String value) {
-		try {
-			wait.until(ExpectedConditions.elementToBeClickable(element));
-			element.click();
-			element.clear();
-			element.sendKeys(Keys.CONTROL + "a");
-			element.sendKeys(Keys.DELETE);
-			element.sendKeys(value);
-		} catch (StaleElementReferenceException e) {
-			try {
-				Thread.sleep(300);
-				element.clear();
-				element.sendKeys(Keys.CONTROL + "a");
-				element.sendKeys(Keys.DELETE);
-				element.sendKeys(value);
-			} catch (Exception ignored) {}
-		}
+	    try {
+	        wait.until(ExpectedConditions.elementToBeClickable(element));
+	        element.click();
+
+	        // Clear normally
+	        element.clear();
+
+	        // Extra clearing — ensures removal of Bengali or multi-values
+	        element.sendKeys(Keys.CONTROL + "a");
+	        element.sendKeys(Keys.DELETE);
+
+	        // Enter correct Excel value
+	        element.sendKeys(value);
+
+	    } catch (StaleElementReferenceException e) {
+	        try {
+	            Thread.sleep(300);
+	            element.clear();
+	            element.sendKeys(Keys.CONTROL + "a");
+	            element.sendKeys(Keys.DELETE);
+	            element.sendKeys(value);
+	        } catch (Exception ignored) {}
+	    }
 	}
 
 	/*---------------------------------- Login Page ------------------------------------------------*/
@@ -254,25 +262,21 @@ public class PageBean {
 
 	/*-------------------------------------------- Search section ----------------------------------------*/
 
-	// FIX: was looping twice — second click fired before first result loaded,
-	// causing logicToSkip() to see stale/empty table and wrongly skip valid entries.
 	public void searchPerson(String voterCard) {
 		wait.until(ExpectedConditions.presenceOfElementLocated(By.id("insure_voter_id")));
-		if (checkbox.isSelected()) {
-			checkbox.click();
+		int i = 0;
+		while (i < 2) {
+			if (checkbox.isSelected()) {
+				checkbox.click();
+			}
+			voterCardNumber.clear();
+			voterCardNumber.sendKeys(voterCard);
+			searchButton.click();
+			i++;
 		}
-		voterCardNumber.clear();
-		voterCardNumber.sendKeys(voterCard);
-		searchButton.click();
-		// Let results settle before logicToSkip() reads the table
-		try { Thread.sleep(1500); } catch (InterruptedException ignored) {}
 	}
 
 	/*-------------------------------- Logic to skip ----------------------------------------*/
-
-	// FIX: implicit wait dropped to 1s and never restored — all subsequent findElement
-	// calls (farmerDetails, cropDetails, bank) silently timed out at 1s.
-	// finally block guarantees restore to 10s regardless of outcome.
 	public boolean logicToSkip(String crop, String gramPanchayat) {
 		try {
 			driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(1));
@@ -282,23 +286,18 @@ public class PageBean {
 					return true;
 				}
 			}
-		} catch (Exception ignored) {
-		} finally {
-			driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10)); // always restore
-		}
+		} catch (Exception ignored) {}
 		return false;
 	}
 
 	/*-------------------------------------- Aadhar card entry ----------------------------------------*/
-
-	// FIX: getText() on <input> always returns "" in Selenium — must use getAttribute("value")
 	public void dataEntry(String aadharCard) {
-		String existing = aadharCardNumber.getAttribute("value");
-		if (existing == null || existing.trim().isEmpty()) {
+		if (aadharCardNumber.getText().equals("")) {
 			aadharCardNumber.sendKeys(aadharCard);
 		}
 		wait.until(ExpectedConditions.elementToBeClickable(applicationSource));
-		new Select(applicationSource).selectByIndex(1);
+		Select dropDown = new Select(applicationSource);
+		dropDown.selectByIndex(1);
 	}
 
 	/*----------------------------------------- Farmer Details section --------------------------------------*/
@@ -310,25 +309,36 @@ public class PageBean {
 		nameAsPerEpic.sendKeys(name);
 		fatherOrHusbandName.sendKeys(fatherHusbandName);
 
-		new Select(relationWithFarmerDropDown).selectByValue(relationWithFarmer);
-		new Select(ageDropDown).selectByValue(age);
-		new Select(genderDropDown).selectByValue(gender);
-		new Select(casteDropDown).selectByValue(caste);
+		Select dropdown1 = new Select(relationWithFarmerDropDown);
+		dropdown1.selectByValue(relationWithFarmer);
+
+		Select dropDown2 = new Select(ageDropDown);
+		dropDown2.selectByValue(age);
+
+		Select dropDown3 = new Select(genderDropDown);
+		dropDown3.selectByValue(gender);
+
+		Select dropDown4 = new Select(casteDropDown);
+		dropDown4.selectByValue(caste);
 
 		mobileNumber.sendKeys(mobileNum);
-		new Select(farmerCategoryDropDown).selectByValue(farmerCategory);
 
+		Select dropDown5 = new Select(farmerCategoryDropDown);
+		dropDown5.selectByValue(farmerCategory);
+
+		/* File Upload Logic (unchanged) */
 		try {
 			File file1 = new File(VARIABLES.VOTER_FILE_PATH + "\\" + epicIDImage + ".jpg");
 			File file2 = new File(VARIABLES.VOTER_FILE_PATH + "\\" + epicIDImage + ".jpeg");
 			File file3 = new File(VARIABLES.VOTER_FILE_PATH + "\\" + epicIDImage + ".png");
 			File file4 = new File(VARIABLES.VOTER_FILE_PATH + "\\" + epicIDImage + ".pdf");
 
-			if      (file1.exists()) voterIDUpload.sendKeys(file1.getAbsolutePath());
+			if (file1.exists()) voterIDUpload.sendKeys(file1.getAbsolutePath());
 			else if (file2.exists()) voterIDUpload.sendKeys(file2.getAbsolutePath());
 			else if (file3.exists()) voterIDUpload.sendKeys(file3.getAbsolutePath());
 			else if (file4.exists()) voterIDUpload.sendKeys(file4.getAbsolutePath());
 			else throw new FileNotFoundException("Voter ID not found: " + epicIDImage);
+
 		} catch (Exception e) { e.printStackTrace(); }
 
 		try {
@@ -337,11 +347,12 @@ public class PageBean {
 			File file3 = new File(VARIABLES.AADHAR_FILE_PATH + "\\" + aadharImg + ".png");
 			File file4 = new File(VARIABLES.AADHAR_FILE_PATH + "\\" + aadharImg + ".pdf");
 
-			if      (file1.exists()) aadharIDUpload.sendKeys(file1.getAbsolutePath());
+			if (file1.exists()) aadharIDUpload.sendKeys(file1.getAbsolutePath());
 			else if (file2.exists()) aadharIDUpload.sendKeys(file2.getAbsolutePath());
 			else if (file3.exists()) aadharIDUpload.sendKeys(file3.getAbsolutePath());
 			else if (file4.exists()) aadharIDUpload.sendKeys(file4.getAbsolutePath());
 			else throw new FileNotFoundException("Aadhar not found: " + aadharImg);
+
 		} catch (Exception e) { e.printStackTrace(); }
 	}
 
@@ -349,16 +360,25 @@ public class PageBean {
 	public void farmerResidentialAddress(String district, String block, String gramPanchayat, String village,
 			String pin) throws InterruptedException {
 
-		new Select(farmersResidentialAddressDistrictDropDown).selectByVisibleText(district);
+		Select dropDown1 = new Select(farmersResidentialAddressDistrictDropDown);
+		dropDown1.selectByVisibleText(district);
 
-		wait.until(driver1 -> new Select(farmersResidentialAddressblockDropDown).getOptions().size() > 1);
+		wait.until(driver1 -> {
+			Select dropDown2 = new Select(farmersResidentialAddressblockDropDown);
+			return dropDown2.getOptions().size() > 1;
+		});
 		new Select(farmersResidentialAddressblockDropDown).selectByVisibleText(block);
 
-		wait.until(driver1 -> new Select(farmersResidentialAddressgramPanchayatDropDown).getOptions().size() > 1);
+		wait.until(driver1 -> {
+			Select dropDown3 = new Select(farmersResidentialAddressgramPanchayatDropDown);
+			return dropDown3.getOptions().size() > 1;
+		});
 		new Select(farmersResidentialAddressgramPanchayatDropDown).selectByVisibleText(gramPanchayat);
 
-		wait.until(driver1 -> new Select(farmersResidentialAddressvillageDropDown).getOptions().size() > 1);
-		Thread.sleep(2000);
+		wait.until(driver1 -> {
+			Select dropDown4 = new Select(farmersResidentialAddressvillageDropDown);
+			return dropDown4.getOptions().size() > 1;
+		});
 		new Select(farmersResidentialAddressvillageDropDown).selectByIndex(1);
 
 		pinCode.sendKeys(pin);
@@ -371,18 +391,30 @@ public class PageBean {
 
 		new Select(cropDetailsDistrictDropDown).selectByVisibleText(district);
 
-		wait.until(driver1 -> new Select(cropDetailsBlockDropDown).getOptions().size() > 1);
+		wait.until(driver1 -> {
+			Select dropDown = new Select(cropDetailsBlockDropDown);
+			return dropDown.getOptions().size() > 1;
+		});
 		new Select(cropDetailsBlockDropDown).selectByVisibleText(block);
 
-		wait.until(driver1 -> new Select(cropDetailsCropDropDown).getOptions().size() > 1);
+		wait.until(driver1 -> {
+			Select dropDown = new Select(cropDetailsCropDropDown);
+			return dropDown.getOptions().size() > 1;
+		});
 		new Select(cropDetailsCropDropDown).selectByVisibleText(crop);
 
 		if (cropDetailsGramPanchayatFinal.isEnabled()) {
-			wait.until(driver1 -> new Select(cropDetailsGramPanchayatFinal).getOptions().size() > 1);
+			wait.until(driver1 -> {
+				Select dropDown = new Select(cropDetailsGramPanchayatFinal);
+				return dropDown.getOptions().size() > 1;
+			});
 			new Select(cropDetailsGramPanchayatFinal).selectByVisibleText(gp);
 		}
 
-		wait.until(driver1 -> new Select(cropDetailsMouzaDropDown).getOptions().size() > 1);
+		wait.until(driver1 -> {
+			Select dropDown = new Select(cropDetailsMouzaDropDown);
+			return dropDown.getOptions().size() > 1;
+		});
 		new Select(cropDetailsMouzaDropDown).selectByVisibleText(mouza);
 
 		clearAndType(cropDetailskhaitanNumber, khatianNumber);
@@ -394,6 +426,7 @@ public class PageBean {
 		clearAndType(cropDetailsPlotNumber, plotNumber);
 
 		cropDetailsAreaInAcre.sendKeys(areaInAcre1);
+
 		cropDetailsNatureOfFarmerDropDown.click();
 
 		Double area = Double.parseDouble(areaInAcre1);
@@ -402,20 +435,25 @@ public class PageBean {
 			driver.switchTo().alert().accept();
 		}
 
-		wait.until(driver1 -> new Select(cropDetailsNatureOfFarmerDropDown).getOptions().size() > 1);
+		wait.until(driver1 -> {
+			Select dropDown = new Select(cropDetailsNatureOfFarmerDropDown);
+			return dropDown.getOptions().size() > 1;
+		});
 		new Select(cropDetailsNatureOfFarmerDropDown).selectByVisibleText(natureOfFarmer);
 
+		/* Upload parcha & land document */
 		try {
 			File f1 = new File(VARIABLES.PARCHA_FILE_PATH + "\\" + parchaImg + ".jpg");
 			File f2 = new File(VARIABLES.PARCHA_FILE_PATH + "\\" + parchaImg + ".jpeg");
 			File f3 = new File(VARIABLES.PARCHA_FILE_PATH + "\\" + parchaImg + ".png");
 			File f4 = new File(VARIABLES.PARCHA_FILE_PATH + "\\" + parchaImg + ".pdf");
 
-			if      (f1.exists()) cropDetailsParchaUpload.sendKeys(f1.getAbsolutePath());
+			if (f1.exists()) cropDetailsParchaUpload.sendKeys(f1.getAbsolutePath());
 			else if (f2.exists()) cropDetailsParchaUpload.sendKeys(f2.getAbsolutePath());
 			else if (f3.exists()) cropDetailsParchaUpload.sendKeys(f3.getAbsolutePath());
 			else if (f4.exists()) cropDetailsParchaUpload.sendKeys(f4.getAbsolutePath());
 			else throw new FileNotFoundException("Parcha not found: " + parchaImg);
+
 		} catch (Exception e) { e.printStackTrace(); }
 
 		try {
@@ -424,19 +462,16 @@ public class PageBean {
 			File f3 = new File(VARIABLES.PARCHA_FILE_PATH + "\\" + parchaImg + ".png");
 			File f4 = new File(VARIABLES.PARCHA_FILE_PATH + "\\" + parchaImg + ".pdf");
 
-			if      (f1.exists()) landDocumentProofUpload.sendKeys(f1.getAbsolutePath());
+			if (f1.exists()) landDocumentProofUpload.sendKeys(f1.getAbsolutePath());
 			else if (f2.exists()) landDocumentProofUpload.sendKeys(f2.getAbsolutePath());
 			else if (f3.exists()) landDocumentProofUpload.sendKeys(f3.getAbsolutePath());
 			else if (f4.exists()) landDocumentProofUpload.sendKeys(f4.getAbsolutePath());
 			else throw new FileNotFoundException("Land document not found: " + parchaImg);
+
 		} catch (Exception e) { e.printStackTrace(); }
 	}
 
 	/*----------------------------------------- Bank details entry ------------------------------------------------*/
-
-	// FIX: added proper waits before each field — the bank section renders after
-	// crop section completes, and account number sometimes re-renders via AJAX
-	// after IFSC lookup, causing "element not found/interactable" errors.
 	public void bankDetailsEntry(String name, String accountNumber, String accountType, String ifscCode)
 			throws InterruptedException {
 
