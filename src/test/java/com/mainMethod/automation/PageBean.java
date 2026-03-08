@@ -486,7 +486,7 @@ public class PageBean {
 		ifsCode.sendKeys(ifscCode);
 		
 		bankName.click();
-		Thread.sleep(500);		
+		Thread.sleep(1000);		
 		
 		try {
 			File f1 = new File(VARIABLES.BANK_FILE_PATH + "\\" + accountNumber + ".jpg");
