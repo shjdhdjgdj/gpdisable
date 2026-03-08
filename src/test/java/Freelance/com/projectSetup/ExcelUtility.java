@@ -13,21 +13,31 @@ import org.testng.annotations.DataProvider;
 
 public class ExcelUtility {
 
-    // ─── Single static lock for all file access across threads ───────────────
+    // ─── Single static lock — safe across parallel TestNG threads ─────────────
     private static final Object FILE_LOCK = new Object();
 
+    // Pre-cache colour indices for readability
     private static final short COLOR_GREEN  = IndexedColors.GREEN.getIndex();
     private static final short COLOR_RED    = IndexedColors.RED.getIndex();
     private static final short COLOR_YELLOW = IndexedColors.YELLOW.getIndex();
     private static final short COLOR_WHITE  = IndexedColors.WHITE.getIndex();
     private static final short COLOR_BLACK  = IndexedColors.BLACK.getIndex();
 
+    // ─────────────────────────────────────────────────────────────────────────
+    //  DATA PROVIDER
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Reads all data rows from the configured Excel sheet.
+     * Row index (1-based) is stored at position 0 of each row array so that
+     * updateTestStatus() can write back to the exact source row.
+     */
     @DataProvider(name = "excelData")
     public static Object[][] getExcelData() {
         File file = new File(VARIABLES.EXCEL_FILE_PATH);
 
-        try (FileInputStream excelFile = new FileInputStream(file);
-             Workbook workBook = WorkbookFactory.create(excelFile)) {
+        try (FileInputStream fis = new FileInputStream(file);
+             Workbook workBook = WorkbookFactory.create(fis)) {
 
             Sheet sheet       = workBook.getSheet(VARIABLES.SHEET_NAME);
             int totalRows     = sheet.getLastRowNum();
@@ -37,10 +47,10 @@ public class ExcelUtility {
 
             for (int i = 1; i <= totalRows; i++) {
                 Row row = sheet.getRow(i);
-                if (row == null) continue;
+                if (row == null) continue; // skip blank rows
 
-                Object[] rowData = new Object[totalColumns + 1];
-                rowData[0] = i; // 1-based row index
+                Object[] rowData = new Object[totalColumns + 1]; // +1 for row index at [0]
+                rowData[0] = i; // 1-based Excel row number
 
                 for (int j = 0; j < totalColumns; j++) {
                     Cell cell = row.getCell(j);
@@ -55,21 +65,30 @@ public class ExcelUtility {
 
         } catch (IOException e) {
             e.printStackTrace();
-            throw new RuntimeException("Error reading excel file: " + e.getMessage());
+            throw new RuntimeException("Error reading Excel file: " + e.getMessage());
         }
     }
 
-    /** Update test status — default column BD (index 55) */
+    // ─────────────────────────────────────────────────────────────────────────
+    //  STATUS WRITER  (default column BD = index 55)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** Convenience overload — writes to column BD (index 55). */
     public static void updateTestStatus(int rowIndex, String status) {
         updateTestStatus(rowIndex, status, 55);
     }
 
     /**
-     * Update test status with a custom column.
+     * Writes PASS / FAIL / SKIP with colour coding to the given column.
      *
-     * @param rowIndex     1-based Excel row number
-     * @param status       PASS / FAIL / SKIP
-     * @param statusColumn 0-based column index
+     * FIX: Old code called workBook.createCellStyle() on every invocation.
+     * Excel has a hard limit of 64 000 cell styles per workbook; hitting it
+     * corrupts the file. This version scans existing styles and reuses a
+     * matching one — creating at most 3 new styles ever (one per status).
+     *
+     * @param rowIndex     1-based Excel row number (as stored at data[0])
+     * @param status       "PASS", "FAIL", or "SKIP"
+     * @param statusColumn 0-based column index to write into
      */
     public static void updateTestStatus(int rowIndex, String status, int statusColumn) {
 
@@ -79,57 +98,57 @@ public class ExcelUtility {
 
             Workbook workBook = null;
 
-            // ── Step 1: Read file (stream closed before write) ───────────────
+            // Step 1 — read (stream closed before write to avoid file-lock conflicts)
             try (FileInputStream fis = new FileInputStream(file)) {
                 workBook = WorkbookFactory.create(fis);
             } catch (IOException e) {
-                System.err.println("❌ Error reading Excel row " + rowIndex + ": " + e.getMessage());
+                System.err.println("❌ Cannot read Excel for row " + rowIndex + ": " + e.getMessage());
                 e.printStackTrace();
                 return;
             }
 
-            // ── Step 2: Edit in memory, then write ───────────────────────────
+            // Step 2 — edit in memory
             try {
                 Sheet sheet = workBook.getSheet(VARIABLES.SHEET_NAME);
 
                 Row row = sheet.getRow(rowIndex);
                 if (row == null) row = sheet.createRow(rowIndex);
 
-                Cell statusCell = row.getCell(statusColumn, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
-                statusCell.setCellValue(status);
-
-                // FIX: Reuse existing styles — never create a new one if a matching
-                //      style already exists in the workbook style table.
-                //      Creating a new CellStyle every call hits Excel's 64k limit fast.
-                statusCell.setCellStyle(findOrCreateStyle(workBook, status));
-
+                Cell cell = row.getCell(statusColumn, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                cell.setCellValue(status);
+                cell.setCellStyle(findOrCreateStyle(workBook, status)); // ✅ reuse styles
                 sheet.autoSizeColumn(statusColumn);
 
-                // ── Step 3: Write — fos always closed by try-with-resources ──
+                // Step 3 — write (try-with-resources guarantees fos.close())
                 try (FileOutputStream fos = new FileOutputStream(file)) {
                     workBook.write(fos);
-                    fos.flush(); // flush OS buffers fully before releasing lock
+                    fos.flush();
                 }
 
-                System.out.println("✅ Excel updated: Row " + rowIndex + " = " + status);
+                System.out.println("✅ Excel updated — Row " + rowIndex + " = " + status);
 
             } catch (Exception e) {
-                System.err.println("❌ Error updating Excel row " + rowIndex + ": " + e.getMessage());
+                System.err.println("❌ Error writing Excel row " + rowIndex + ": " + e.getMessage());
                 e.printStackTrace();
             } finally {
-                // ── Step 4: Workbook always closed even if write() throws ────
+                // Step 4 — always close workbook
                 try { workBook.close(); } catch (IOException ignored) {}
             }
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    //  STYLE HELPER
+    // ─────────────────────────────────────────────────────────────────────────
+
     /**
-     * FIX: Scan the workbook's existing style table before creating a new style.
-     * Each workbook only ever needs 3 styles (PASS/FAIL/SKIP).
-     * Without this, every updateTestStatus() call creates a new CellStyle,
-     * which hits Excel's 64k-style hard limit and corrupts the file.
+     * Scans the workbook's style table and returns a matching style if one
+     * already exists. Creates a new style only when necessary (first time
+     * each status is seen). This keeps the total new-style count at ≤ 3,
+     * well within Excel's 64 k limit.
      */
     private static CellStyle findOrCreateStyle(Workbook workBook, String status) {
+
         short bgColor   = COLOR_WHITE;
         short fontColor = COLOR_BLACK;
 
@@ -139,22 +158,25 @@ public class ExcelUtility {
             case "SKIP": bgColor = COLOR_YELLOW; fontColor = COLOR_BLACK; break;
         }
 
-        // Scan existing styles — reuse if a match is found
+        final short finalBg   = bgColor;
+        final short finalFont = fontColor;
+
+        // Scan existing styles — reuse on match
         int numStyles = workBook.getNumCellStyles();
         for (int i = 0; i < numStyles; i++) {
             CellStyle existing = workBook.getCellStyleAt(i);
-            if (existing.getFillForegroundColor() == bgColor
-                    && existing.getFillPattern() == FillPatternType.SOLID_FOREGROUND) {
-                return existing; // reuse, do NOT create new
+            if (existing.getFillPattern() == FillPatternType.SOLID_FOREGROUND
+                    && existing.getFillForegroundColor() == finalBg) {
+                return existing; // ✅ reuse — do NOT create another
             }
         }
 
-        // First time this status is seen — create exactly one style for it
+        // First occurrence of this status — create exactly one style for it
         CellStyle style = workBook.createCellStyle();
         Font font       = workBook.createFont();
-        style.setFillForegroundColor(bgColor);
+        style.setFillForegroundColor(finalBg);
         style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        font.setColor(fontColor);
+        font.setColor(finalFont);
         style.setFont(font);
         return style;
     }
