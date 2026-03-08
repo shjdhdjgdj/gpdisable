@@ -164,17 +164,17 @@ public class MainRunnerClass {
             String PlotNo1      = (String) data[19];
             String AreaInsur1   = (String) data[20];
             // data[21] is blank column — skipped
-            String FarmrCat     = (String) data[22];
-            String NatureFarmr1 = (String) data[23];
-            String IFSCode      = (String) data[24];
-            String AccNo        = (String) data[25];
-            String Vill         = (String) data[26];
-            String Pin          = (String) data[27];
-            String AccType      = (String) data[28];
-            String Relation     = (String) data[29];
+            String FarmrCat     = (String) data[21];
+            String NatureFarmr1 = (String) data[22];
+            String IFSCode      = (String) data[23];
+            String AccNo        = (String) data[24];
+            String Vill         = (String) data[25];
+            String Pin          = (String) data[26];
+            String AccType      = (String) data[27];
+            String Relation     = (String) data[28];
             // data[30] = AppSource — not used in form filling
-            String EpicIDImg    = (String) data[31];
-            String ParchaImg    = (String) data[32];
+            String EpicIDImg    = (String) data[30];
+            String ParchaImg    = (String) data[31];
 
             // Log which row is being processed
             System.out.println("▶️ Processing Row " + rowIndex + " - Epic ID: " + EpicID + " - Farmer: " + FarmrName);
