@@ -226,6 +226,9 @@ public class PageBean {
 	@FindBy(id = "before_insure_submit")
 	private WebElement submitButton;
 
+	@FindBy(id = "insure_nominee_name")
+	private WebElement nomineeName;
+
 	/*-------------------------------------------------------------*/
 	public void gotoPage() {
 		Actions action = new Actions(driver);
@@ -325,6 +328,9 @@ public class PageBean {
 
 		Select dropDown5 = new Select(farmerCategoryDropDown);
 		dropDown5.selectByValue(farmerCategory);
+
+		try { Thread.sleep(1000); } catch (InterruptedException e) { e.printStackTrace(); }
+		nomineeName.clear();
 
 		/* File Upload Logic (unchanged) */
 		try {
