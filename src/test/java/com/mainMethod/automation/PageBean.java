@@ -169,9 +169,6 @@ public class PageBean {
     @FindBy(id = "insurance_farmer_insurance_applications_attributes_0_crop_id")
     private WebElement cropDetailsCropDropDown;
 
-    @FindBy(id = "insurance_farmer_insurance_applications_attributes_0_gram_panchayat_id")
-    private WebElement cropDetailsGramPanchayatInitial;
-
     @FindBy(id = "insurance_farmer_insurance_applications_attributes_0_insurance_lands_attributes_0_gram_panchayat_id")
     private WebElement cropDetailsGramPanchayatFinal;
 
@@ -401,7 +398,7 @@ public class PageBean {
     }
 
     /*--------------------------------------- Crop details entry ----------------------------------------*/
-    public void cropDetailsEntry(String district, String block, String crop, String gpInitial, String mouza,
+    public void cropDetailsEntry(String district, String block, String crop, String mouza,
             String khatianNumber, String plotNumber, String areaInAcre1, String natureOfFarmer, String parchaImg)
             throws InterruptedException {
 
